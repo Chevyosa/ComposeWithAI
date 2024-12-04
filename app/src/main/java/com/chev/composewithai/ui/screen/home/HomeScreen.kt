@@ -11,9 +11,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,29 +25,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.chev.composewithai.data.viewmodel.ChatViewModel
 import com.chev.composewithai.ui.theme.ComposeWithAITheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: ChatViewModel) {
-    val userMessages by remember { mutableStateOf(viewModel.userMessages) }
-    val assistantMessages by remember { mutableStateOf(viewModel.assistantMessages) }
+    val allMessages = viewModel.allMessages
+    val isLoading = viewModel.isLoading
     var userMessage by remember { mutableStateOf("") }
 
     Scaffold(
-        modifier = Modifier.fillMaxWidth()
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        textAlign = TextAlign.Center,
+                        text = "QwenAIChat",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+            )
+        },
+        content = { innerPadding ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(userMessages + assistantMessages) { message ->
+                    items(allMessages) { message ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start
@@ -60,23 +77,48 @@ fun HomeScreen(viewModel: ChatViewModel) {
                             )
                         }
                     }
+
+                    if (isLoading) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "Typing...",
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .background(
+                                            Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(12.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Row(modifier = Modifier.padding(8.dp)) {
                     TextField(
                         value = userMessage,
                         onValueChange = { userMessage = it },
-                        modifier = Modifier.weight(1f),
-                        label = { Text("Type a message...") }
+                        label = { Text("Type a message...") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .shadow(10.dp, RoundedCornerShape(24.dp)),
+                        colors = TextFieldDefaults.colors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                        ),
                     )
                     Button(
                         onClick = {
                             if (userMessage.isNotBlank()) {
-                                viewModel.fetchChatResponse("f21f8326bc84de1e25027b67cad1ee7680b9f71349daa6a274f837b2ef6f67b8", userMessage)
-                                userMessage = ""  // Reset field input
+                                viewModel.sendMessage(userMessage)
+                                userMessage = ""
                             }
                         },
                         modifier = Modifier.padding(start = 8.dp)
@@ -86,8 +128,9 @@ fun HomeScreen(viewModel: ChatViewModel) {
                 }
             }
         }
-    }
+    )
 }
+
 
 @Preview
 @Composable

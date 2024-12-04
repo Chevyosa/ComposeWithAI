@@ -1,25 +1,43 @@
 package com.chev.composewithai.data.viewmodel
 
-import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.chev.composewithai.data.model.chat_request.ChatRequest
 import com.chev.composewithai.data.model.chat_response.ChatResponse
 import com.chev.composewithai.data.model.message.Message
 import com.chev.composewithai.data.network.retrofit.RetrofitInstance
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
 class ChatViewModel : ViewModel() {
+    private val _allMessages = mutableStateListOf<Message>()
+    val allMessages: List<Message> get() = _allMessages
+
     private val _userMessages = mutableStateListOf<Message>() // Pesan dari user
     val userMessages: List<Message> = _userMessages
 
     private val _assistantMessages = mutableStateListOf<Message>() // Pesan dari assistant
     val assistantMessages: List<Message> = _assistantMessages
 
-    fun fetchChatResponse(apiKey: String, userMessage: String) {
+    private val _isLoading = mutableStateOf(false)
+    val isLoading: Boolean get() = _isLoading.value
+
+    fun sendMessage(userMessage: String) {
+        if (userMessage.isBlank()) return
+        val userChat = Message(role = "user", content = userMessage)
+        _allMessages.add(userChat)
+
+        _isLoading.value = true
+
+        fetchChatResponse(userMessage)
+    }
+
+    private fun fetchChatResponse(userMessage: String) {
         val messages = listOf(Message(role = "user", content = userMessage))
         val request = ChatRequest(
             model = "Qwen/Qwen2.5-72B-Instruct-Turbo",
@@ -27,18 +45,29 @@ class ChatViewModel : ViewModel() {
         )
 
         val service = RetrofitInstance.api
-        val call = service.getChatResponse("Bearer $apiKey", request)
+        val call = service.getChatResponse("Bearer f21f8326bc84de1e25027b67cad1ee7680b9f71349daa6a274f837b2ef6f67b8", request)
         call.enqueue(object : Callback<ChatResponse> {
             override fun onResponse(call: Call<ChatResponse>, response: Response<ChatResponse>) {
+                _isLoading.value = false
                 if (response.isSuccessful) {
-                    val assistantReply = response.body()?.choices?.firstOrNull()?.message?.content
-                        ?: "No response content."
-
-                    _userMessages.add(Message(role = "user", content = userMessage))
-                    _assistantMessages.add(Message(role = "assistant", content = assistantReply))
+                    val assistantMessage = response.body()?.choices?.firstOrNull()?.message
+                    assistantMessage?.let {
+                        _allMessages.add(Message(role = "assistant", content = it.content))
+                    }
+                    if (assistantMessage != null) {
+                        _assistantMessages.add(assistantMessage)
+                    } else {
+                        _assistantMessages.add(
+                            Message(role = "assistant", content = "No response received.")
+                        )
+                    }
                 } else {
-                    val errorMessage = "Error: ${response.errorBody()?.string()}"
-                    _assistantMessages.add(Message(role = "assistant", content = errorMessage))
+                    _assistantMessages.add(
+                        Message(
+                            role = "assistant",
+                            content = "Error: ${response.errorBody()?.string()}"
+                        )
+                    )
                 }
             }
 
